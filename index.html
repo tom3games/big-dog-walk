@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>大型犬の散歩 | 引きずられながら家を目指す3Dバカゲー</title>
+<meta name="description" content="大きすぎる犬の散歩に出る3Dバカゲー。猫・鳩・焼き芋屋・結婚式の前撮りへ犬が突進し、飼い主は顔から引きずられる。耳が立ったら合図、踏ん張るか電柱にリードを巻くかを決める。壊した物はお辞儀で謝る。スマホのブラウザで無料で遊べる。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="大型犬の散歩">
+<meta property="og:description" content="散歩されているのは、あなたです。猫に、焼き芋屋に、前撮りの二人に、犬が突進する。踏ん張るか、電柱に巻くか。壊したら深くお辞儀。スマホで遊べる3Dバカゲー。">
+<meta property="og:image" content="https://tom3games.github.io/big-dog-walk/og.png?v=1">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://tom3games.github.io/big-dog-walk/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#e9b98a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700&family=Mochiy+Pop+One&family=Yomogi&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<!-- 読み込み中: 散歩の足あと。進み具合は本物の読み込み数 -->
+<div id="loading">
+  <svg class="paws" viewBox="0 0 300 60" aria-hidden="true">
+    <g fill="#5b3a1e"><g class="pw" style="--i:0"><ellipse cx="20" cy="40" rx="7" ry="6"/><circle cx="12" cy="31" r="3"/><circle cx="19" cy="28" r="3"/><circle cx="27" cy="31" r="3"/></g>
+    <g class="pw" style="--i:1"><ellipse cx="70" cy="24" rx="7" ry="6"/><circle cx="62" cy="15" r="3"/><circle cx="69" cy="12" r="3"/><circle cx="77" cy="15" r="3"/></g>
+    <g class="pw" style="--i:2"><ellipse cx="120" cy="40" rx="7" ry="6"/><circle cx="112" cy="31" r="3"/><circle cx="119" cy="28" r="3"/><circle cx="127" cy="31" r="3"/></g>
+    <g class="pw" style="--i:3"><ellipse cx="170" cy="24" rx="7" ry="6"/><circle cx="162" cy="15" r="3"/><circle cx="169" cy="12" r="3"/><circle cx="177" cy="15" r="3"/></g>
+    <g class="pw" style="--i:4"><ellipse cx="220" cy="40" rx="7" ry="6"/><circle cx="212" cy="31" r="3"/><circle cx="219" cy="28" r="3"/><circle cx="227" cy="31" r="3"/></g>
+    <g class="pw" style="--i:5"><ellipse cx="270" cy="24" rx="7" ry="6"/><circle cx="262" cy="15" r="3"/><circle cx="269" cy="12" r="3"/><circle cx="277" cy="15" r="3"/></g></g>
+  </svg>
+  <p id="loadText" class="load-text">リードをつけています</p>
+  <div class="leashbar"><i id="loadBar"></i><b class="handle"></b></div>
+</div>
+
+<div id="view"></div>
+<div id="fxFlash"></div>
+
+<!-- 遊び中 -->
+<section id="hud" class="hidden">
+  <div class="plates">
+    <div class="plate addr"><span class="plabel" id="hHomeL"></span><b id="hDist">0</b><span class="punit" id="hM"></span></div>
+    <div class="plate clock"><span class="plabel" id="hClockL"></span><b id="hClock">3:00</b></div>
+  </div>
+  <div id="bang" class="bang hidden"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 3l9 15 17-8-2 18 19 2-12 14 14 12-18 5 5 18-17-5-6 18-9-15-10 14-4-18-18 4 7-17-17-7 15-11-11-15 19-1-1-18 16 8z" fill="#fffbe6" stroke="#1d1410" stroke-width="4" stroke-linejoin="round"/><text x="50" y="70" text-anchor="middle" font-size="58" font-weight="900" fill="#d4302a" font-family="BIZ UDPGothic, sans-serif">!</text></svg><span id="bangKind"></span></div>
+  <div id="telop" class="telop"></div>
+  <div id="hint" class="hint hidden"><span id="hintText"></span><i id="hintFinger" class="finger"></i></div>
+  <!-- お辞儀: 分度器 -->
+  <div id="bow" class="bow hidden">
+    <p id="bowWho" class="bow-who"></p>
+    <svg id="bowSvg" viewBox="0 0 220 130" aria-hidden="true">
+      <path d="M20 120 A100 100 0 0 1 120 20" fill="none" stroke="#2a2520" stroke-width="3"/>
+      <path id="bowGood" fill="none" stroke="#e8a23a" stroke-width="16"/>
+      <path id="bowDeep" fill="none" stroke="#d4302a" stroke-width="16"/>
+      <g id="bowTicks" stroke="#2a2520" stroke-width="2"></g>
+      <line x1="20" y1="120" x2="210" y2="120" stroke="#2a2520" stroke-width="3"/>
+      <g id="bowNeedle"><line x1="20" y1="120" x2="20" y2="34" stroke="#1d1410" stroke-width="7" stroke-linecap="round"/><circle cx="20" cy="28" r="11" fill="#1d1410"/></g>
+      
+    </svg>
+    <p id="bowGradeL" class="bow-grade"></p>
+  </div>
+</section>
+
+<!-- タイトル: 町内の注意看板 -->
+<section id="title" class="screen hidden">
+  <div class="sign">
+    <p class="sign-top" data-t="signTop"></p>
+    <h1 data-t="title"></h1>
+    <p class="sign-ruby" data-t="titleRuby"></p>
+    <p class="sign-sub" data-t="sub"></p>
+    <p class="sign-from" data-t="signFrom"></p>
+  </div>
+  <div class="title-actions">
+    <button id="btnStart" class="go"><span data-t="start"></span></button>
+    <button id="btnHow" class="text-btn" data-t="howBtn"></button>
+  </div>
+  <nav class="foot">
+    <button id="btnLang" class="mini" data-t="lang"></button>
+    <button id="btnMute" class="mini"></button>
+    <a class="mini" href="https://tom3games.github.io/" data-t="more"></a>
+  </nav>
+</section>
+
+<!-- 遊び方: 町内会の掲示 -->
+<section id="how" class="screen hidden">
+  <div class="notice">
+    <h2 data-t="howTitle"></h2>
+    <ol id="howList"></ol>
+    <p class="how-note" id="howRead"></p>
+    <p class="how-note" id="howBow"></p>
+    <p class="how-note goal" id="howGoal"></p>
+    <button id="btnOk" class="go small" data-t="ok"></button>
+    <p class="foot-small"><a id="lPrivacy" href="privacy.html" target="_blank" rel="noopener"></a><span class="credit" data-t="credit"></span></p>
+  </div>
+</section>
+
+<!-- 結果: 回覧板 -->
+<section id="result" class="screen hidden">
+  <canvas id="board" width="720" height="960"></canvas>
+  <div class="result-actions">
+    <button id="btnAgain" class="go small" data-t="again"></button>
+    <div class="row">
+      <a id="btnPost" class="mini" target="_blank" rel="noopener" data-t="post"></a>
+      <button id="btnSave" class="mini" data-t="save"></button>
+      <button id="btnTitle" class="mini" data-t="toTitle"></button>
+    </div>
+  </div>
+</section>
+
+<script>
+// 拡大を止める（ピンチ・ダブルタップ・Ctrl+ホイール/キー）。iOS は user-scalable=no を無視するので JS でも止める
+(function(){
+  var opt={passive:false};
+  ['gesturestart','gesturechange','gestureend'].forEach(function(n){document.addEventListener(n,function(e){e.preventDefault()},opt)});
+  document.addEventListener('touchmove',function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},opt);
+  var last=0;document.addEventListener('touchend',function(e){var n=Date.now();if(n-last<300&&!(e.target.closest&&e.target.closest('button,a')))e.preventDefault();last=n},opt);
+  document.addEventListener('dblclick',function(e){e.preventDefault()},opt);
+  window.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault()},opt);
+  window.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&['+','-','=','0',';'].indexOf(e.key)>=0)e.preventDefault()});
+})();
+// 起動失敗の保険。JS が動いたか（__jsUp）で判定し、読み込み中を失敗と出さない
+(function(){
+  var errs=[];
+  window.addEventListener('error',function(e){errs.push((e.message||'error')+' @'+(e.filename||'')+':'+(e.lineno||''))});
+  window.addEventListener('unhandledrejection',function(e){errs.push('reject: '+(e.reason&&e.reason.message||e.reason))});
+  setTimeout(function(){
+    if(window.__jsUp && !errs.length) return;
+    if(window.__bdReady) return;
+    var d=document.createElement('div');d.id='boot-err';
+    d.textContent='起動できませんでした / failed to start\n'+(errs.join('\n')||'(no error captured)')+'\n'+navigator.userAgent;
+    document.body.appendChild(d);
+  },9000);
+})();
+</script>
+<script src="data.js?v=1"></script>
+<script src="sfx.js?v=1"></script>
+<script src="tm.js?v=1" data-game="big-dog-walk"></script>
+<script type="module" src="js/game.js?v=1"></script>
+<script src="support.js?v=2" data-ja="犬のおやつ" data-en="a dog treat"></script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+:root{--ink:#1d1410;--paper:#fbf7ee;--sign:#f7f5ef;--green:#1f7a4c;--red:#d4302a;--blue:#1d4f9c;--wood:#a8774a}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden],.hidden{display:none!important}
+html,body{height:100%;overflow:hidden;background:#e9b98a}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{font-family:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif;color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+button,a{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+button,canvas{touch-action:manipulation}
+#view{position:fixed;inset:0;touch-action:none}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+#boot-err{position:fixed;inset:auto 8px 8px 8px;z-index:99;background:#fff;color:#b00;font:12px/1.4 monospace;white-space:pre-wrap;padding:10px;border-radius:8px}
+#fxFlash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:5}
+
+/* ---------- 読み込み */
+#loading{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(#f2c48e,#e79d78);transition:opacity .4s}
+#loading.done{opacity:0;pointer-events:none}
+.paws{width:min(300px,80vw);height:60px}
+.pw{opacity:.12;animation:paw 1.8s infinite;animation-delay:calc(var(--i)*.3s)}
+@keyframes paw{0%,10%{opacity:.12}25%{opacity:.85}70%{opacity:.85}100%{opacity:.12}}
+.load-text{font-size:17px;letter-spacing:.06em}
+.leashbar{position:relative;width:min(260px,70vw);height:10px}
+.leashbar::before{content:"";position:absolute;inset:3px 0;border-radius:4px;background:rgba(90,50,20,.18)}
+.leashbar i{position:absolute;left:0;top:3px;height:4px;width:0;background:#c8322a;border-radius:4px;transition:width .2s}
+.leashbar .handle{position:absolute;left:-10px;top:-4px;width:18px;height:18px;border:4px solid #c8322a;border-radius:50%}
+
+/* ---------- 画面の共通 */
+.screen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;height:100svh;overflow:hidden;padding:max(14px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom))}
+.go{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:0 30px;border:0;border-radius:12px;background:var(--red);color:#fff;font-size:21px;letter-spacing:.06em;box-shadow:0 5px 0 #8e1d18;cursor:pointer}
+.go:active{transform:translateY(4px);box-shadow:0 1px 0 #8e1d18}
+.go.small{min-height:50px;font-size:19px;padding:0 26px}
+.go .grip{width:34px;height:22px;flex:none}
+.text-btn{background:none;border:0;font-size:16px;padding:10px 14px;text-decoration:underline;text-underline-offset:4px;cursor:pointer;color:#2a2520}
+.mini{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;border:0;border-radius:1px;background:#fff3a8;color:#2a2520;font-family:"Yomogi",sans-serif;font-size:15px;text-decoration:none;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.25);rotate:-1.5deg}
+.mini:nth-child(2){rotate:1.2deg;background:#ffd9c2}.mini:nth-child(3){rotate:-.6deg;background:#d8ecc6}
+
+/* ---------- タイトル: 白いホーロー看板 */
+#title{justify-content:space-between}
+.sign{margin-top:min(6vh,40px);width:min(330px,88vw);background:var(--sign);border:6px solid var(--green);border-radius:6px;padding:14px 16px 12px;box-shadow:0 10px 24px rgba(60,30,10,.28),inset 0 0 0 2px #fff;transform:rotate(-1.5deg);text-align:center;position:relative}
+.sign::before,.sign::after{content:"";position:absolute;top:8px;width:9px;height:9px;border-radius:50%;background:#9a9a92;box-shadow:inset -1px -1px 0 rgba(0,0,0,.3)}
+.sign::before{left:8px}.sign::after{right:8px}
+.sign-top{font-size:13px;color:var(--green);letter-spacing:.1em}
+.sign h1{white-space:nowrap;font-size:clamp(34px,11vw,46px);line-height:1.08;margin:6px 0 2px;color:var(--ink);letter-spacing:.02em}
+.sign-ruby{font-size:12px;color:#6a6258;letter-spacing:.14em}
+.sign-sub{margin-top:10px;font-size:17px;color:var(--red)}
+.sign-from{margin-top:8px;font-size:12px;color:#6a6258;text-align:right}
+.title-actions{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto;margin-bottom:10px}
+.foot{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+
+/* ---------- 遊び方: 掲示板の紙 */
+#how{background:rgba(40,28,18,.55);justify-content:center}
+.notice{width:min(380px,100%);max-height:100%;background:var(--paper);border-radius:3px;padding:16px 16px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);position:relative;display:flex;flex-direction:column;gap:8px}
+.notice::before{content:"";position:absolute;top:-7px;left:50%;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#d4302a;box-shadow:0 2px 0 #8e1d18}
+.notice h2{font-size:21px;text-align:center;border-bottom:2px solid var(--ink);padding-bottom:6px}
+#howList{list-style:none;display:flex;flex-direction:column;gap:8px}
+#howList li{display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:center}
+#howList svg{width:52px;height:52px}
+#howList b{display:block;font-size:16px}
+#howList span{word-break:auto-phrase;display:block;font-size:13px;line-height:1.5;color:#4a423a}
+.how-note{word-break:auto-phrase;font-size:13px;line-height:1.55;color:#3a332c}
+.how-note.goal{font-size:14px;color:var(--red)}
+.notice .go{align-self:center;margin-top:4px}
+.foot-small{display:flex;flex-direction:column;gap:2px;align-items:center;font-size:10.5px;color:#6a6258;text-align:center;line-height:1.4}
+.foot-small a{font-size:12px;color:#1d4f9c}
+
+/* ---------- HUD: 電柱の住所表示板 */
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none}
+.plates{position:absolute;top:max(10px,env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start}
+.plate{display:flex;align-items:baseline;gap:4px;padding:4px 9px 5px;border-radius:3px;color:#fff;font-size:13px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.plate b{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.plate.addr{background:var(--blue);border:2px solid #fff;outline:1.5px solid var(--blue)}
+.plate.clock{background:var(--green);border:2px solid #fff;outline:1.5px solid var(--green)}
+.plate.clock.late{background:var(--red);outline-color:var(--red)}
+.plabel{font-size:12px;opacity:.95}
+.punit{font-size:13px}
+.bang{pointer-events:none;position:absolute;left:0;top:0;width:84px;margin:-92px 0 0 -42px;display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 0 rgba(0,0,0,.25));animation:bang .32s cubic-bezier(.3,1.7,.5,1)}
+.bang svg{width:84px;height:84px;animation:wob .5s ease-in-out infinite alternate}
+.bang span{margin-top:-6px;padding:1px 8px;background:var(--ink);color:#fff;border-radius:3px;font-size:14px;white-space:nowrap}
+@keyframes bang{from{scale:.2}to{scale:1}}
+@keyframes wob{from{rotate:-6deg}to{rotate:6deg}}
+.telop{pointer-events:none;position:absolute;left:12px;right:12px;top:30%;text-align:center;font-family:"Mochiy Pop One","BIZ UDPGothic",sans-serif;font-size:clamp(23px,7.2vw,34px);color:#fff36b;-webkit-text-stroke:6px #1d1410;paint-order:stroke fill;letter-spacing:.02em;line-height:1.2;opacity:0;transform:scale(.6);transition:opacity .12s,transform .16s ease-out}
+.telop.on{opacity:1;transform:scale(1)}
+.telop.red{color:#ff6a5a}
+.hint{pointer-events:none;position:absolute;left:50%;bottom:max(18%,120px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px}
+.hint span{background:rgba(29,20,16,.82);color:#fff;font-size:17px;padding:8px 14px;border-radius:6px;white-space:nowrap}
+.finger{width:46px;height:46px;border-radius:50%;border:3px solid #fff;background:rgba(255,255,255,.25);box-shadow:0 0 0 3px rgba(29,20,16,.6)}
+.hint.swipe .finger{animation:swipe 1.3s ease-in-out infinite}
+.hint.hold .finger{animation:holdf 1.1s ease-in-out infinite}
+.hint.tap .finger{animation:tapf .8s ease-in-out infinite}
+@keyframes swipe{0%,100%{translate:-70px 0}50%{translate:70px 0}}
+@keyframes holdf{0%{scale:1}50%{scale:.78;background:rgba(255,200,60,.6)}100%{scale:1}}
+@keyframes tapf{0%,100%{scale:1}40%{scale:.7}}
+.hint.at{bottom:auto;transform:translate(-50%,-50%)}
+
+/* お辞儀: 分度器（紙） */
+.bow{pointer-events:none;position:absolute;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(280px,80vw);background:var(--paper);border:2px solid var(--ink);border-radius:4px;padding:8px 12px 6px;display:flex;flex-direction:column;align-items:center;box-shadow:0 6px 0 rgba(0,0,0,.2)}
+.bow-who{font-size:15px;text-align:center;line-height:1.35}
+.bow svg{width:100%;height:auto;max-height:17svh}
+.bow-grade{min-height:24px;font-family:"Mochiy Pop One",sans-serif;font-size:19px;color:var(--red)}
+
+/* ---------- 結果: 回覧板 */
+#result{background:rgba(40,28,18,.55);justify-content:center;gap:10px}
+#board{display:block;width:auto;height:auto;max-width:100%;max-height:calc(100svh - 150px);border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.4)}
+.result-actions{display:flex;flex-direction:column;align-items:center;gap:8px;flex:none}
+.result-actions .row{display:flex;gap:8px}
+@media (max-height:700px){
+  .sign h1{font-size:36px}.sign-sub{font-size:15px}
+  #howList span{font-size:12px}.how-note{word-break:auto-phrase;font-size:12px}.notice{gap:6px;padding:12px 14px 10px}
+  #howList svg{width:44px;height:44px}#howList li{grid-template-columns:44px 1fr}
+  #board{max-height:calc(100svh - 136px)}
+}

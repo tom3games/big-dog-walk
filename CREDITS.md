@@ -1,0 +1,44 @@
+- snd/bark1.mp3: Dog sounds / pauliuw / CC0
+- snd/bark2.mp3: Dog sounds / pauliuw / CC0
+- snd/bark3.mp3: Dog sounds / pauliuw / CC0
+- snd/bark4.mp3: File:Bark (avk).wav / Luce VERGNEAUX / CC0
+- snd/burst1.mp3: Dog barking mono / HaelDB / CC0,OGA-BY 3.0
+- snd/burst2.mp3: Dog barking mono / HaelDB / CC0,OGA-BY 3.0
+- snd/burst3.mp3: Dog barking mono / HaelDB / CC0,OGA-BY 3.0
+- snd/whine.mp3: Dog sounds / pauliuw / CC0
+- snd/grunt.mp3: Dog Grunt / qubodup / CC0
+- snd/amb_street.mp3: 上の41〜65秒（静かな通り・車が1台通る）を1.5秒の重ね合わせで継ぎ目なしのループにしたもの（22.5秒・16kHz・WAV） / cori / Public domain
+- snd/bgm.mp3: Comedy Funny Background Song / Almitory / CC-BY 3.0,CC-BY 4.0,CC-BY-SA 3.0,CC-BY-SA 4.0,CC0,GPL 2.0,GPL 3.0,OGA-BY 3.0
+- snd/crow.mp3: Crow / fvcalderan / CC0
+- snd/meow1.mp3: Cat Purr & Meow / Kerzoven / CC0
+- snd/meow2.mp3: Cat Purr & Meow / Kerzoven / CC0
+- snd/pot1.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/pot2.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/pot3.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/metal1.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/metal2.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/clang.mp3: 100 CC0 SFX #2 / rubberduck / CC0
+- snd/wood1.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/wood2.mp3: 75 CC0 breaking / falling / hit sfx / rubberduck / CC0
+- snd/scrape1.mp3: 100 CC0 SFX #2 / rubberduck / CC0
+- snd/scrape2.mp3: 100 CC0 SFX #2 / rubberduck / CC0
+- snd/scrape3.mp3: 100 CC0 SFX #2 / rubberduck / CC0
+- snd/thud1.mp3: Thwack Sounds / AntumDeluge / CC0
+- snd/thud2.mp3: Thwack Sounds / AntumDeluge / CC0
+- snd/cloth1.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/cloth2.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/leash.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/step1.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/step2.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/step3.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/swish.mp3: Swishes Sound Pack / artisticdude / CC0
+- snd/win.mp3: 85 Short music jingles / Kenney / CC0
+- snd/lose.mp3: 85 Short music jingles / Kenney / CC0
+- snd/bowgood.mp3: 85 Short music jingles / Kenney / CC0
+- snd/bowbad.mp3: 85 Short music jingles / Kenney / CC0
+- snd/coin.mp3: Coin Drop / Vinrax / CC0
+- snd/ding.mp3: Bell dings/chimes / PWL / CC0
+- snd/whistle.mp3: File:218318 splicesound referee-whistle-blow-gymnasium.wav / SpliceSound / CC0
+- snd/applause.mp3: Applause in a large hall or church / eXpl0it3r / CC0
+- snd/click.mp3: Interface Sounds / Kenney / CC0
+- snd/squeak.mp3: Squeak toy sounds / bart / CC0
