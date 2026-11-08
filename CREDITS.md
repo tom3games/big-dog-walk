@@ -42,3 +42,13 @@
 - snd/applause.mp3: Applause in a large hall or church / eXpl0it3r / CC0
 - snd/click.mp3: Interface Sounds / Kenney / CC0
 - snd/squeak.mp3: Squeak toy sounds / bart / CC0
+- snd/splash1.mp3: 40 CC0 water / splash / slime SFX / rubberduck / CC0
+- snd/splash2.mp3: 40 CC0 water / splash / slime SFX / rubberduck / CC0
+- snd/bell.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/creak1.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/creak2.mp3: 50 RPG sound effects / Kenney / CC0
+- snd/pop1.mp3: 3 Pop Sounds / wubitog / CC0
+- snd/pop2.mp3: 3 Pop Sounds / wubitog / CC0
+- snd/box.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/spring.mp3: 100 CC0 SFX / rubberduck / CC0
+- snd/bgm_run.mp3: Catch me if you can! / poinl / CC0

@@ -1,5 +1,5 @@
 import './mute-auto.mjs'
-// その場の確認用スクショ。node shot.mjs [w] [h]
+// その場の確認用スクショ。node shot.mjs [w] [h]（音は出さない）
 import { chromium } from 'playwright'
 import { MUTE_LAUNCH, muteContext } from './mute.mjs'
 import { spawn } from 'node:child_process'
@@ -11,32 +11,29 @@ await new Promise(r => setTimeout(r, 400))
 const W = +process.argv[2] || 390, H = +process.argv[3] || 844
 const b = await chromium.launch(MUTE_LAUNCH), ctx = await b.newContext({ viewport: { width: W, height: H }, locale: 'ja-JP', deviceScaleFactor: 2 })
 await muteContext(ctx)
+await ctx.addInitScript(() => { try { localStorage.setItem('bd_tut2', '1') } catch (e) {} })
 const p = await ctx.newPage(); const errs = []
 p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) })
 await p.goto(`http://localhost:${PORT}/`); await p.waitForFunction(() => window.__bdReady, null, { timeout: 15000 })
-await p.waitForTimeout(800)
-await p.screenshot({ path: 'shots/s-title.png' })
-await p.evaluate(() => bd.start({ seed: 5 }))
 await p.waitForTimeout(1500)
+await p.screenshot({ path: 'shots/s-title.png' })
+const snap = async (name, js) => { await p.evaluate(js); await p.evaluate(() => bd.render()); await p.screenshot({ path: `shots/s-${name}.png` }) }
+await p.evaluate(() => { bd.start({ seed: 5 }) }); await p.waitForTimeout(2500)
 await p.screenshot({ path: 'shots/s-play.png' })
 console.log('info', JSON.stringify(await p.evaluate(() => bd.info())))
-// 最初の出来事まで進める
-await p.evaluate(() => { bd.dbg.pause(true); for (let i = 0; i < 60 * 30 && !(bd.w.dog.ev && bd.w.dog.ev.st === 'alert' && bd.w.dog.ev.t > 0.6); i++) bd.dbg.step(1); bd.dbg.pause(false) })
-await p.evaluate(() => bd.dbg.pause(true)); await p.evaluate(() => bd.render())
-await p.screenshot({ path: 'shots/s-alert.png' })
-await p.evaluate(() => { for (let i = 0; i < 70; i++) bd.dbg.step(1); bd.render() })
-await p.screenshot({ path: 'shots/s-bolt.png' })
-console.log(JSON.stringify(await p.evaluate(() => ({ st: bd.w.dog.st, me: bd.w.me.st, ev: bd.w.dog.ev && bd.w.dog.ev.kind, hud: bd.hud() }))))
-// お辞儀まで
-await p.evaluate(() => { for (let i = 0; i < 60 * 12 && bd.w.phase !== 'bow'; i++) bd.dbg.step(1); for (let i = 0; i < 30; i++) bd.dbg.step(1); bd.render() })
-await p.screenshot({ path: 'shots/s-bow.png' })
-await p.evaluate(() => { bd.input({ bowOnce: true }); bd.dbg.step(1); bd.input(null); for (let i = 0; i < 20; i++) bd.dbg.step(1); bd.render() })
-await p.screenshot({ path: 'shots/s-bow2.png' })
-// 巻きつけ
-await p.evaluate(() => { bd.start({ seed: 9, only: ['yakiimo', 'wedding'] }); bd.dbg.pause(true); bd.bot('reader', 3); for (let i = 0; i < 60 * 40 && !(bd.w.wrap && bd.w.dog.st === 'bolt' && bd.w.dog.ev.t > 1); i++) bd.dbg.step(1); bd.render() })
-await p.screenshot({ path: 'shots/s-wrap.png' })
-// 最後まで（reader）→ 結果
-await p.evaluate(() => { bd.start({ seed: 11 }); bd.dbg.pause(true); bd.bot('idle', 3); for (let i = 0; i < 60 * 200 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult() })
+const until = (cond, max = 60 * 120) => `(() => { bd.dbg.pause(true); const f = w => (${cond}); let i = 0; for (; i < ${max} && !f(bd.w); i++) bd.dbg.step(1); return i })()`
+// 物の手前（いろいろ）
+await snap('ahead', until("w.obs.some(o => !o.mePassed && o.s - w.me.s < 9 && o.s - w.me.s > 6 && o.h === 'tall')"))
+await snap('tumble', `(() => { bd.bot('idle', 1); ${until("w.me.st === 'tumble' && w.me.st_t > 0.35")}; bd.bot(null) })()`)
+await snap('bow', until("w.me.st === 'bow' && w.bow && w.bow.t > 0.42"))
+await p.evaluate(() => { bd.start({ seed: 9, only: ['cat', 'yakiimo'] }) })
+await snap('alert', until("w.dog.dart && w.dog.dart.st === 'alert' && w.dog.dart.t > 0.6"))
+await snap('dart', until("w.dog.dart && w.dog.dart.st === 'go' && w.dog.dart.t > 0.6"))
+await p.evaluate(() => { bd.start({ seed: 12, only: ['wedding', 'bar', 'truck', 'cement', 'crow', 'bike', 'pot', 'gate', 'cart', 'sprinkler', 'manhole', 'cat', 'skate', 'banana', 'puddle', 'sign', 'walker', 'pole'] }) })
+for (const k of ['wedding', 'bar', 'truck', 'cement', 'crow', 'bike', 'pot', 'gate', 'cart', 'sprinkler', 'manhole', 'cat', 'skate', 'banana', 'puddle', 'sign', 'walker', 'pole']) {
+  await snap('ob-' + k, `(() => { bd.bot('skilled', 3); ${until(`w.obs.some(o => o.kind === '${k}' && !o.mePassed && o.s - w.me.s < 7.5 && o.s - w.me.s > 4)`)}; bd.bot(null) })()`)
+}
+await p.evaluate(() => { bd.start({ seed: 11 }); bd.dbg.pause(true); bd.bot('clumsy', 3); for (let i = 0; i < 60 * 200 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult() })
 await p.waitForTimeout(600)
 await p.screenshot({ path: 'shots/s-result.png' })
 await p.evaluate(() => { document.getElementById('btnTitle').click() }); await p.evaluate(() => document.getElementById('btnHow').click()); await p.waitForTimeout(300)

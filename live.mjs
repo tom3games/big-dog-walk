@@ -1,7 +1,7 @@
 import './mute-auto.mjs'
 import { MUTE_LAUNCH, muteContext } from './mute.mjs'
 // 公開URLの確認。node live.mjs（ログインしていないブラウザで見る）。SKIPGH=1 で GitHub ページの確認を省く
-// 遊びの通しは「散歩に出る」→ reader の bot で最後まで → 回覧板
+// 遊びの通しは「散歩に出る」のあと上手い bot で最後まで、回覧板まで
 import { chromium, webkit } from 'playwright'
 import { execSync } from 'node:child_process'
 // 個人のアカウント名は公開リポジトリに書かない。実行時に gh から取る（2026-11-02 live.mjs に名前が文字で入ったまま5本公開していた）
@@ -17,12 +17,12 @@ for (const [name, bt, opts] of [['chromium', chromium, {}], ['webkit', webkit, {
   p.on('requestfailed', r => errs.push('fail ' + r.url()))
   await p.goto(URL0 + '?t=' + Date.now(), { waitUntil: 'networkidle' })
   await p.waitForFunction(() => window.__bdReady, null, { timeout: 15000 })
-  // ---- 遊びの通し（タイトル → 遊ぶ → 結果）
-  await p.evaluate(() => { try { localStorage.setItem('bd_tut', '1') } catch (e) {} })
+  // ---- 遊びの通し（タイトル、遊ぶ、結果）
+  await p.evaluate(() => { try { localStorage.setItem('bd_tut2', '1') } catch (e) {} })
   const sb = await p.locator('#btnStart').boundingBox()
   if (bt === webkit) await p.touchscreen.tap(sb.x + sb.width / 2, sb.y + sb.height / 2); else await p.mouse.click(sb.x + sb.width / 2, sb.y + sb.height / 2)
   await p.waitForTimeout(600)
-  const flow = await p.evaluate(() => { const m = bd.mode; bd.start({ seed: 5 }); bd.dbg.pause(true); bd.bot('reader', 5); for (let i = 0; i < 60 * 260 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult(); return { m, total: bd.w.result.total, home: bd.w.result.home, mute: window.__muteOk() } })
+  const flow = await p.evaluate(() => { const m = bd.mode; bd.start({ seed: 5 }); bd.dbg.pause(true); bd.bot('skilled', 5); for (let i = 0; i < 60 * 200 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult(); return { m, total: bd.w.result.total, home: bd.w.result.home, mute: window.__muteOk() } })
   await p.waitForTimeout(500)
   out.push(`${name}: flow=${JSON.stringify(flow)}`)
   await p.screenshot({ path: `shots/live-${name}.png` })

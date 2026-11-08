@@ -2,16 +2,16 @@
 import * as THREE from 'three'
 import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js'
 import { clone as skClone } from '../vendor/jsm/utils/SkeletonUtils.js'
-import { createFace } from './look.js?v=1'
+import { createFace } from './look.js?v=2'
 
 const BASE = 'assets/chars/'
-export const FILES = ['male-a', 'male-b', 'male-c', 'male-d', 'male-f', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f']
+export const FILES = ['female-e', 'male-b', 'female-d', 'male-f', 'female-c', 'male-d', 'female-f', 'male-c']
 const A = { src: {}, clips: null, ready: false }
 export const assets = A
 export const SCALE = 2.0   // Kenney Mini（身長 0.72）を 1.45m に
 
 // 主役だけ先に読む（準備完了に要る）。ほかは裏で読む
-export function loadPeople(manager, first = ['male-a']) {
+export function loadPeople(manager, first = ['female-e']) {
   const L = new GLTFLoader(manager)
   const get = f => new Promise((ok, ng) => L.load(BASE + 'character-' + f + '.glb', g => { prep(f, g); ok() }, undefined, ng))
   const head = Promise.all(first.map(get))
@@ -29,7 +29,7 @@ export class Person {
     this.file = file
     this.group = new THREE.Group()
     this.lean = new THREE.Group(); this.group.add(this.lean)
-    const src = A.src[file] || A.src['male-a']
+    const src = A.src[file] || A.src['female-e']
     const ch = this.char = skClone(src)
     ch.traverse(m => {
       if (m.isMesh && m.material) {
@@ -42,10 +42,10 @@ export class Person {
     this.bones = {}; ch.traverse(b => { if (b.isBone || b.type === 'Object3D') this.bones[b.name] = b })
     this.mixer = new THREE.AnimationMixer(ch)
     this.acts = {}
-    for (const n of ['idle', 'walk', 'sprint', 'fall', 'die', 'sit', 'emote-yes', 'emote-no', 'holding-both', 'crouch', 'interact-right', 'pick-up']) {
+    for (const n of ['idle', 'walk', 'sprint', 'fall', 'die', 'sit', 'emote-yes', 'emote-no', 'holding-both', 'holding-right', 'crouch', 'jump', 'interact-right', 'pick-up']) {
       const c = A.clips && A.clips[n]; if (!c) continue
       const a = this.mixer.clipAction(c); this.acts[n] = a
-      if (n === 'die' || n === 'fall') { a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true }
+      if (n === 'die' || n === 'fall' || n === 'jump') { a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true }
     }
     this.cur = null; this.play(o.anim || 'idle', 0); this.mixer.update(Math.random())
     if (o.face) this.addFace(o.face)

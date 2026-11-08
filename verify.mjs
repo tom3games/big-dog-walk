@@ -1,5 +1,5 @@
 import './mute-auto.mjs'
-// 大型犬の散歩の検証。node verify.mjs（音は出さない。Chromium と WebKit）
+// 大型犬の散歩 v2 の検証。node verify.mjs（音は出さない。Chromium と WebKit）
 import { chromium, webkit } from 'playwright'
 import { MUTE_LAUNCH, muteContext } from './mute.mjs'
 import { spawn, execSync } from 'node:child_process'
@@ -17,10 +17,10 @@ async function t(name, fn) {
   catch (e) { fail++; results.push(`FAIL ${name}  ${String(e.message).split('\n')[0]}`) }
 }
 const expect = (c, msg) => { if (!c) throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg)) }
-async function open(browser, opts = {}, keepStorage = false) {
+async function open(browser, opts = {}, tutDone = true) {
   const ctx = await browser.newContext({ locale: 'ja-JP', viewport: { width: 390, height: 844 }, ...opts })
   await muteContext(ctx)
-  if (!keepStorage) await ctx.addInitScript(() => { try { localStorage.clear(); localStorage.setItem('bd_tut', '1') } catch (e) {} })
+  await ctx.addInitScript(d => { try { localStorage.clear(); if (d) localStorage.setItem('bd_tut2', '1') } catch (e) {} }, tutDone)
   const p = await ctx.newPage(); p.errs = []
   p.on('pageerror', e => p.errs.push('pageerror ' + e.message))
   p.on('console', m => { if (m.type() === 'error') p.errs.push('console ' + m.text()) })
@@ -30,7 +30,7 @@ async function open(browser, opts = {}, keepStorage = false) {
 }
 const overflow = p => p.evaluate(() => {
   const W = document.documentElement.clientWidth, bad = []
-  for (const el of document.querySelectorAll('.screen:not(.hidden) *, #hud:not(.hidden) .plates *')) {
+  for (const el of document.querySelectorAll('.screen:not(.hidden) *, #hud:not(.hidden) .plates *, #hud:not(.hidden) .treat')) {
     if (el.closest('.hidden') || (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true }))) continue
     const r = el.getBoundingClientRect(); if (r.width && (r.right > W + 1 || r.left < -1)) bad.push((el.id || el.className || el.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right))
   }
@@ -39,11 +39,17 @@ const overflow = p => p.evaluate(() => {
 const fit = q => q.evaluate(() => {
   const H = innerHeight, de = document.documentElement, over = []
   if (de.scrollHeight > H + 1) over.push('page:' + de.scrollHeight)
-  for (const el of document.querySelectorAll('.screen:not(.hidden) button, .screen:not(.hidden) a, .screen:not(.hidden) canvas, #bow:not(.hidden), #hud:not(.hidden) .plate')) { if (!el.offsetParent && el.id !== 'bow') continue; const r = el.getBoundingClientRect(); if (!r.width) continue; if (r.bottom > H + 1 || r.top < -1) over.push((el.id || el.className) + ':' + Math.round(r.top) + '-' + Math.round(r.bottom)) }
+  for (const el of document.querySelectorAll('.screen:not(.hidden) button, .screen:not(.hidden) a, .screen:not(.hidden) canvas, #bow:not(.hidden), #hud:not(.hidden) .plate, #hud:not(.hidden) .treat')) { if (!el.offsetParent && el.id !== 'bow') continue; const r = el.getBoundingClientRect(); if (!r.width) continue; if (r.bottom > H + 1 || r.top < -1) over.push((el.id || el.className) + ':' + Math.round(r.top) + '-' + Math.round(r.bottom)) }
   return { H, over: over.slice(0, 6) }
 })
 // 台本どおりに進める（時間を止めて n 歩）
-const runUntil = (p, cond, max = 60 * 60) => p.evaluate(([cond, max]) => { const f = new Function('w', 'return ' + cond); let i = 0; for (; i < max && !f(bd.w); i++) bd.dbg.step(1); bd.render(); return i }, [cond, max])
+const runUntil = (p, cond, max = 60 * 60) => p.evaluate(([cond, max]) => { bd.dbg.pause(true); const f = new Function('w', 'return ' + cond); let i = 0; for (; i < max && !f(bd.w); i++) bd.dbg.step(1); bd.render(); return i }, [cond, max])
+// 本物の指（マウス）でなぞる
+async function swipe(p, dx, dy, x0 = 195, y0 = 560) {
+  await p.mouse.move(x0, y0); await p.mouse.down()
+  for (let i = 1; i <= 6; i++) { await p.mouse.move(x0 + dx * i / 6, y0 + dy * i / 6); await p.waitForTimeout(10) }
+  await p.mouse.up()
+}
 const SIZES = [[360, 640, 'small'], [390, 844, 'phone'], [430, 932, 'large']]
 
 const browser = await chromium.launch(MUTE_LAUNCH)
@@ -75,6 +81,10 @@ await t('画面に「AI」「画像生成」の文字が無い（日英の文言
   const r = await p.evaluate(() => { const s = JSON.stringify(window.BD_TEXT, (k, v) => typeof v === 'function' ? String(v) : v) + document.body.innerText; return /(^|[^A-Za-z])AI([^A-Za-z]|$)|画像生成/.test(s) })
   expect(!r, 'found')
 })
+await t('支援リンクは「作者に犬のおやつをおごる」だけ（任意の文字なし）', async () => {
+  const r = await p.evaluate(() => { const a = document.getElementById('tmSupport'); return a ? a.textContent.trim() : '' })
+  expect(r === '作者に犬のおやつをおごる', r); return r
+})
 
 // ---- 本物の指（マウス）で操作する
 await t('タイトルの「散歩に出る」を押すと遊びが始まる', async () => {
@@ -85,102 +95,113 @@ await t('タイトルの「散歩に出る」を押すと遊びが始まる', as
   expect(r.mode === 'play' && r.hud, r)
 })
 await t('Chromium: 実際には無音（始めるを押したあと）', async () => { const r = await p.evaluate(() => ({ ok: window.__muteOk(), calls: window.__soundCalls })); expect(r.ok, r); return r })
-await t('なぞる: 右へスワイプで横に寄る（踏ん張りにはならない）', async () => {
-  await p.evaluate(() => bd.start({ seed: 21, only: ['yakiimo'] }))
-  await p.waitForTimeout(300)
-  const x0 = await p.evaluate(() => bd.w.me.x)
-  await p.mouse.move(195, 600); await p.mouse.down()
-  for (let i = 1; i <= 8; i++) { await p.mouse.move(195 + i * 18, 600); await p.waitForTimeout(12) }
-  const mid = await p.evaluate(() => bd.w.me.st)
-  await p.mouse.up(); await p.waitForTimeout(900)
-  const r = await p.evaluate(() => ({ lane: bd.w.me.lane, x: bd.w.me.x, st: bd.w.me.st, sit: bd.w.dog.sit }))
-  expect(r.lane > 0.8 && r.x > x0 + 0.5 && mid !== 'hold' && r.sit < 0.5, { ...r, x0, mid }); return { lane: +r.lane.toFixed(2), dx: +(r.x - x0).toFixed(2) }
+await t('右へなぞると右の列へ、左へなぞると戻る（指で）', async () => {
+  await p.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await p.waitForTimeout(200)
+  await swipe(p, 90, 0); await p.waitForTimeout(350)
+  const a = await p.evaluate(() => ({ lane: bd.w.me.lane, x: +bd.w.me.x.toFixed(2) }))
+  await swipe(p, -90, 0); await p.waitForTimeout(350)
+  const b = await p.evaluate(() => ({ lane: bd.w.me.lane, x: +bd.w.me.x.toFixed(2) }))
+  expect(a.lane === 1 && a.x > 1.2 && b.lane === 0 && Math.abs(b.x) < 0.3, { a, b }); return { a, b }
 })
-await t('押しっぱなし: 踏ん張りになり、何も来ていない時は犬が座る。離すと歩きに戻る', async () => {
-  await p.mouse.move(195, 560); await p.mouse.down(); await p.waitForTimeout(1300)
-  const a = await p.evaluate(() => ({ st: bd.w.me.st, sit: bd.w.dog.sit, vs: bd.w.dog.vs }))
-  await p.mouse.up(); await p.waitForTimeout(900)
-  const b = await p.evaluate(() => ({ st: bd.w.me.st, sit: bd.w.dog.sit }))
-  expect(a.st === 'hold' && a.sit > 0.5 && b.st === 'walk' && b.sit < 0.5, { a, b }); return { a, b }
+await t('上へなぞると跳ぶ・タップでも跳ぶ・下へなぞるとしゃがむ（指で）', async () => {
+  const peak = async (key) => { let m = 0; for (let i = 0; i < 12; i++) { m = Math.max(m, await p.evaluate(k => bd.w.me[k], key)); await p.waitForTimeout(40) } return +m.toFixed(2) }
+  await p.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await p.waitForTimeout(250)
+  await swipe(p, 0, -90); const up = await peak('y')
+  await p.waitForTimeout(500)
+  await p.mouse.click(195, 500); const tap = await peak('y')
+  await p.waitForTimeout(500)
+  const d0 = await p.evaluate(() => bd.w.stats.ducks)
+  await swipe(p, 0, 90); const duck = await peak('duck'), d1 = await p.evaluate(() => bd.w.stats.ducks)
+  expect(up > 0.2 && tap > 0.2 && duck > 0 && d1 === d0 + 1, { up, tap, duck, d0, d1 }); return { up, tap, duck, ducks: d1 - d0 }
 })
-await t('押しっぱなし中の全力の引きは約2秒で限界になり、顔から引きずられる', async () => {
-  await p.evaluate(() => { bd.start({ seed: 21, only: ['yakiimo'] }); bd.dbg.pause(true) })
-  await runUntil(p, "w.dog.ev && w.dog.ev.st === 'alert' && w.dog.ev.t > 0.3", 60 * 40)
+await t('水たまりの手前で指で上へなぞると跳び越える（当たらない）', async () => {
+  await p.evaluate(() => { bd.start({ seed: 31, only: ['puddle'] }); bd.dbg.pause(true) })
+  await runUntil(p, "w.obs.some(o => o.kind === 'puddle' && Math.abs(o.x - w.me.x) < 0.7 && o.s - w.me.s < w.v * 0.3 && o.s - w.me.s > 0)", 60 * 30)
+  await p.evaluate(() => { bd.dbg.slow(0.25); bd.dbg.pause(false) })
+  await swipe(p, 0, -90)
+  await p.waitForTimeout(3000)
+  const r = await p.evaluate(() => { const o = bd.w.obs.find(o => o.kind === 'puddle' && Math.abs(o.x - bd.w.me.x) < 0.7 && o.mePassed); bd.dbg.slow(1); return { passed: !!o, hit: o && o.hit, hits: bd.w.stats.hits, near: bd.w.stats.near } })
+  expect(r.passed && !r.hit && r.hits === 0, r); return r
+})
+await t('何もしないと当たって転び、お辞儀を押さないと「無言」で1.2倍', async () => {
+  const r = await p.evaluate(() => { bd.start({ seed: 31, only: ['puddle'] }); bd.dbg.pause(true); let st = new Set(); for (let i = 0; i < 60 * 30 && !bd.w.list.length; i++) { bd.dbg.step(1); st.add(bd.w.me.st) } return { st: [...st], list: bd.w.list.map(x => [x.item, x.base, x.cost, x.grade]) } })
   await p.evaluate(() => bd.dbg.pause(false))
-  await p.mouse.move(195, 560); await p.mouse.down()
-  const log = []
-  for (let i = 0; i < 40; i++) { await p.waitForTimeout(250); log.push(await p.evaluate(() => [bd.w.me.st, +bd.w.me.grip.toFixed(2), bd.w.dog.st])) }
-  await p.mouse.up()
-  const held = log.filter(l => l[0] === 'hold' && l[2] === 'bolt').length, dragged = log.some(l => l[0] === 'dragged'), fi = log.findIndex(l => l[0] === 'dragged'), gripAtFall = fi > 0 ? log[fi - 1][1] : 1
-  expect(held >= 4 && dragged && gripAtFall < 0.15, log); return { heldSamples: held, dragged, gripAtFall }
-})
-await t('光る電柱を指でタップすると巻きつく（画面座標で押す）', async () => {
-  await p.evaluate(() => { bd.start({ seed: 22, only: ['yakiimo'] }); bd.dbg.pause(true) })
-  await runUntil(p, "w.dog.ev && w.dog.ev.st === 'alert' && w.reachable().length > 0", 60 * 40)
-  await p.evaluate(() => { bd.dbg.slow(0.15); bd.dbg.pause(false) })
-  await p.waitForTimeout(250)
-  const r = await p.evaluate(() => bd.reachable())
-  expect(r.length && r[0].xy, r)
-  const { x, y } = r[0].xy
-  expect(x > 0 && x < 390 && y > 0 && y < 844, { x, y })
-  await p.mouse.click(x, y); await p.waitForTimeout(300)
-  const w = await p.evaluate(() => ({ wrap: !!bd.w.wrap, id: bd.w.wrap && bd.w.wrap.prop.id, st: bd.w.me.st }))
-  await p.evaluate(() => bd.dbg.slow(1))
-  expect(w.wrap && w.id === r[0].id, { w, r }); return { pole: r[0].kind, at: [Math.round(x), Math.round(y)] }
-})
-await t('巻いている間は焼き芋屋に届かず、去ったら自動でほどける', async () => {
-  await p.evaluate(() => bd.dbg.pause(true))
-  const r = await p.evaluate(() => { for (let i = 0; i < 60 * 10 && bd.w.dog.ev; i++) bd.dbg.step(1); const ev = bd.w.events[0]; for (let i = 0; i < 120; i++) bd.dbg.step(1); return { reached: ev.reached, wrap: !!bd.w.wrap, pend: bd.w.pending.length, list: bd.w.list.length } })
-  await p.evaluate(() => bd.dbg.pause(false))
-  expect(!r.reached && !r.wrap && r.list === 0, r); return r
-})
-await t('遠い電柱をタップしても巻けない', async () => {
-  const r = await p.evaluate(() => { bd.start({ seed: 23, only: ['cat'] }); const far = bd.w.props.find(q => q.wrap && q.s > 40); const before = !!bd.w.wrap; bd.w.doWrap(far); return { before, after: !!bd.w.wrap } })
-  expect(!r.after, r)
+  const [it] = r.list
+  expect(r.st.includes('tumble') && r.st.includes('bow') && it && it[3] === 'silent' && it[2] === Math.round(it[1] * 1.2 / 100) * 100, r); return r
 })
 await t('お辞儀: 一番深い所で指でタップすると「最敬礼」で半額', async () => {
-  await p.evaluate(() => { bd.start({ seed: 24, only: ['cat'] }); bd.dbg.pause(true) })
-  await runUntil(p, "w.phase === 'bow'", 60 * 40)
-  await p.evaluate(() => { bd.dbg.slow(0.25); bd.dbg.pause(false) })
+  await p.evaluate(() => { bd.start({ seed: 31, only: ['puddle'] }); bd.dbg.pause(true) })
+  await runUntil(p, "w.me.st === 'bow'", 60 * 40)
+  await p.evaluate(() => { bd.dbg.slow(0.2); bd.dbg.pause(false) })
   let a = 0
-  for (let i = 0; i < 200; i++) { a = await p.evaluate(() => bd.w.phase === 'bow' && bd.w.bow && !bd.w.bow.grade ? bd.w.me.bowA : -1); if (a > 82 || a < 0) break; await p.waitForTimeout(8) }
-  await p.mouse.click(200, 300)
-  await p.waitForTimeout(250)
+  for (let i = 0; i < 300; i++) { a = await p.evaluate(() => bd.w.me.st === 'bow' && bd.w.bow && !bd.w.bow.grade ? bd.w.me.bowA : -1); if (a > 82 || a < 0) break; await p.waitForTimeout(8) }
+  await p.mouse.click(200, 300); await p.waitForTimeout(250)
   const r = await p.evaluate(() => ({ grade: bd.w.stats.bows.at(-1), list: bd.w.list.map(x => [x.item, x.base, x.cost]) }))
   await p.evaluate(() => bd.dbg.slow(1))
   expect(r.grade === 'deep' && r.list.every(([i, b, c]) => c === b / 2), { a, ...r }); return r
 })
-await t('お辞儀: 押さないと「無言」で1.2倍', async () => {
-  const r = await p.evaluate(() => { bd.start({ seed: 24, only: ['cat'] }); bd.dbg.pause(true); for (let i = 0; i < 60 * 60 && !(bd.w.list.length); i++) bd.dbg.step(1); return { grade: bd.w.stats.bows.at(-1), list: bd.w.list.map(x => [x.base, x.cost]) } })
-  await p.evaluate(() => bd.dbg.pause(false))
-  expect(r.grade === 'silent' && r.list.every(([b, c]) => c === Math.round(b * 1.2 / 100) * 100), r); return r
+await t('リード: 真ん中の人を犬と反対側で通ると巻きつく。同じ側なら当たらない', async () => {
+  const r = await p.evaluate(() => {
+    const out = {}
+    for (const same of [false, true]) {
+      bd.start({ seed: 40, only: ['walker'] }); bd.dbg.pause(true)
+      const o = bd.w.obs[0]
+      o.lane = 0; o.x = 0; o.vs0 = 0
+      for (let i = 0; i < 60 * 20 && !o.dogPassed; i++) { if (bd.w.dog.lane !== 0 && bd.w.me.lane === 0) bd.input({ move: (same ? 1 : -1) * Math.sign(bd.w.dog.lane) }); bd.dbg.step(1) }
+      for (let i = 0; i < 60 * 3 && !o.mePassed; i++) bd.dbg.step(1)
+      out[same ? 'same' : 'opposite'] = { sideD: o.sideD, me: bd.w.me.lane, hit: o.hit, why: o.hitWhy || null }
+    }
+    bd.dbg.pause(false); return out
+  })
+  expect(r.opposite.hit && r.opposite.why === 'wrap' && !r.same.hit, r); return r
+})
+await t('耳が立つと犬が横へ飛ぶ。ついて行かないと引っぱられる', async () => {
+  const r = await p.evaluate(() => {
+    bd.start({ seed: 41, only: ['cat'] }); bd.dbg.pause(true)
+    let alert = false, side = 0, bang = false
+    for (let i = 0; i < 60 * 30; i++) { bd.dbg.step(1); const dz = bd.w.dog.dart; if (dz && dz.st === 'alert' && !alert) { alert = true; side = dz.side; bd.render(); bang = bd.hud().bang } if (alert && !dz) break }
+    bd.dbg.pause(false)
+    return { alert, side, bang, yanks: bd.w.stats.yanks }
+  })
+  expect(r.alert && r.bang && r.yanks >= 1, r); return r
+})
+await t('ギリギリでよけると「ギリギリ」が出て連続が数えられる', async () => {
+  const r = await p.evaluate(() => {
+    bd.start({ seed: 42, only: ['sprinkler'] }); bd.dbg.pause(true)
+    for (let i = 0; i < 60 * 40 && bd.w.stats.near < 2; i++) {
+      const o = bd.w.obs.find(o => !o.mePassed && Math.abs(o.x - bd.w.me.x) < 0.7 && o.s - bd.w.me.s < bd.w.v * 0.22 && o.s - bd.w.me.s > 0)
+      if (o && bd.w.me.lane === Math.round(o.x / 1.5)) bd.input({ move: bd.w.me.lane >= 0 ? -1 : 1 })
+      bd.dbg.step(1)
+    }
+    bd.render(); const h = bd.hud(); bd.dbg.pause(false)
+    return { near: bd.w.stats.near, chain: bd.w.chain, hits: bd.w.stats.hits, pop: h.near }
+  })
+  expect(r.near >= 2 && r.chain >= 2 && r.hits === 0 && r.pop, r); return r
 })
 await t('押している指の上に重なる文字の層は押せない（pointer-events:none）', async () => {
-  const r = await p.evaluate(() => ['hud', 'telop', 'hint', 'bang', 'bow'].map(id => getComputedStyle(document.getElementById(id)).pointerEvents))
+  const r = await p.evaluate(() => ['hud', 'telop', 'hint', 'bang', 'bow', 'near'].map(id => getComputedStyle(document.getElementById(id)).pointerEvents))
   expect(r.every(v => v === 'none'), r); return r
 })
-await t('遊び中に同時に出る文字は2つまか（通しで計測）', async () => {
-  await p.evaluate(() => { bd.start({ seed: 25 }); bd.dbg.pause(true); bd.bot('idle', 1); for (let i = 0; i < 60 * 30 && !bd.w.dog.ev; i++) bd.dbg.step(1); bd.dbg.pause(false) })
+await t('遊び中に同時に出る文字は2つまで（下手な bot の通しで計測）', async () => {
+  await p.evaluate(() => { bd.start({ seed: 25 }); bd.bot('clumsy', 1) })
   let max = 0, worst = null, seen = 0
-  for (let i = 0; i < 50; i++) { await p.waitForTimeout(150); const tx = await p.evaluate(() => bd.texts()); if (tx.length) seen++; if (tx.length > max) { max = tx.length; worst = tx } }
+  for (let i = 0; i < 60; i++) { await p.waitForTimeout(150); const tx = await p.evaluate(() => bd.texts()); if (tx.length) seen++; if (tx.length > max) { max = tx.length; worst = tx } }
   await p.evaluate(() => bd.bot(null))
   expect(max <= 2 && seen > 3, { max, seen, worst }); return { max, seen }
 })
-
-// ---- 遊び方ごとの通し（ブラウザでも同じ計算か）
-await t('何もしない通しは最悪の判定（お詫びが一番多い）', async () => {
-  const r = await p.evaluate(() => { const out = {}; for (const k of ['idle', 'reader']) { bd.start({ seed: 31 }); bd.dbg.pause(true); bd.bot(k, 31); for (let i = 0; i < 60 * 260 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); out[k] = { total: bd.w.result.total, rank: bd.w.result.rank, bad: bd.w.result.bad, home: bd.w.result.home } } bd.dbg.pause(false); return out })
-  expect(r.idle.rank >= 3 && r.idle.total > r.reader.total && r.reader.rank <= 1, r); return r
+await t('ブラウザでも: 何もしない通しが最悪の判定、上手い bot が最良', async () => {
+  const r = await p.evaluate(() => { const out = {}; for (const k of ['idle', 'skilled']) { bd.start({ seed: 31 }); bd.dbg.pause(true); bd.bot(k, 31); for (let i = 0; i < 60 * 200 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); out[k] = { total: bd.w.result.total, rank: bd.w.result.rank, hits: bd.w.result.stats.hits, home: bd.w.result.home, time: Math.round(bd.w.result.time) } } bd.dbg.pause(false); return out })
+  expect(r.idle.rank === 4 && !r.idle.home && r.idle.total > r.skilled.total && r.skilled.rank <= 1 && r.skilled.home, r); return r
 })
 await t('結果の回覧板が描かれ、保存とXの文が出る', async () => {
   await p.evaluate(() => bd.showResult())
   await p.waitForTimeout(500)
-  const r = await p.evaluate(() => { const c = document.getElementById('board'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0, s2 = 0, n = 0; for (let i = 0; i < d.length; i += 4 * 97) { const v = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; s += v; s2 += v * v; n++ } return { varc: Math.round(s2 / n - (s / n) ** 2), post: document.getElementById('btnPost').href, png: c.toDataURL().length, support: !!document.getElementById('tmSupport') } })
-  expect(r.varc > 300 && /x\.com\/intent\/post/.test(r.post) && r.png > 50000 && r.support, r); return { varc: r.varc, png: r.png }
+  const r = await p.evaluate(() => { const c = document.getElementById('board'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0, s2 = 0, n = 0; for (let i = 0; i < d.length; i += 4 * 97) { const v = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; s += v; s2 += v * v; n++ } return { varc: Math.round(s2 / n - (s / n) ** 2), post: decodeURIComponent(document.getElementById('btnPost').href), png: c.toDataURL().length, support: !!document.getElementById('tmSupport') } })
+  expect(r.varc > 300 && /x\.com\/intent\/post/.test(r.post) && /ギリギリ回避/.test(r.post) && r.png > 50000 && r.support, r); return { varc: r.varc, png: r.png }
 })
-await t('音: 犬の鳴き声・壊れる音・環境音が鳴る呼び出しがある（鳴らさず回数で見る）', async () => {
+await t('音: 鳴き声・ぶつかる音・おやつ・環境音の呼び出しがある（鳴らさず回数で見る）', async () => {
   const r = await p.evaluate(() => bd.sound())
-  expect(r.bark > 0 && r.burst > 0 && (r.pot > 0 || r.metal > 0) && r['loop:amb'] > 0, r); return { bark: r.bark, burst: r.burst, pot: r.pot, amb: r['loop:amb'] }
+  expect(r.bark > 0 && (r.splash > 0 || r.thud > 0) && r.pop > 0 && r['loop:amb'] > 0, r); return { bark: r.bark, splash: r.splash, pop: r.pop, amb: r['loop:amb'] }
 })
 await t('英語に切り替えると英語の文言になる', async () => {
   await p.evaluate(() => document.getElementById('btnTitle').click())
@@ -189,32 +210,62 @@ await t('英語に切り替えると英語の文言になる', async () => {
   await p.click('#btnLang')
   expect(r.h1 === 'Big Dog Walk' && /walk/i.test(r.start), r); return r
 })
-await t('初回はチュートリアルが遊びの中で出る（なぞる→踏ん張る）', async () => {
-  const r = await p.evaluate(() => { bd.startTut({ seed: 2 }); const a = bd.hud().hint; bd.dbg.pause(true); for (let i = 0; i < 60 * 30 && !(bd.w.dog.ev && bd.w.dog.ev.st === 'alert'); i++) bd.dbg.step(1); for (let i = 0; i < 3; i++) bd.dbg.step(1); const b = bd.hud().hint; bd.dbg.pause(false); return { a, b } })
-  expect(/なぞ/.test(r.a) && /押しっぱなし/.test(r.b), r); return r
-})
 await t('Chromium: ここまでエラーなし', async () => { expect(p.errs.length === 0, p.errs.slice(0, 4).join('|')) })
 await p.close()
 
-// ---- スマホ縦3サイズ × 全画面で一画面に収まる・押す物が画面内
-for (const [w, h, name] of SIZES) {
-  const q = await open(browser, { viewport: { width: w, height: h }, deviceScaleFactor: 2 })
+// ---- 初回のチュートリアル（指でなぞると次へ進む）
+const pt = await open(browser, {}, false)
+await t('初回: 物の手前で時間がゆっくりになり、指でなぞると進む（よける、跳ぶ、しゃがむ）', async () => {
+  const b = await pt.locator('#btnStart').boundingBox(); await pt.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
+  const got = []
+  for (const [key, dx, dy] of [['swipe', 90, 0], ['jump', 0, -90], ['duck', 0, 90]]) {
+    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 15000 })
+    const h = await pt.evaluate(() => bd.hud().hint)
+    await swipe(pt, dx, dy)
+    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 3000 })
+    got.push(h)
+  }
+  const hits = await pt.evaluate(() => bd.w.stats.hits)
+  expect(/左右/.test(got[0]) && /跳/.test(got[1]) && /しゃが/.test(got[2]) && hits === 0, { got, hits }); return got
+})
+await t('初回: 犬と同じ側・耳が立ったらついて行く、の案内が出る', async () => {
+  const seen = []
+  for (const key of ['side', 'dart']) {
+    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 20000 })
+    seen.push(await pt.evaluate(() => bd.hud().hint))
+    await pt.evaluate(() => { const d = bd.w.dog; const goal = d.dart ? d.dart.side : d.lane; if (bd.w.me.lane !== goal) bd.input({ move: Math.sign(goal - bd.w.me.lane) }) })
+    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 7000 })
+  }
+  expect(/同じ側/.test(seen[0]) && /ついて/.test(seen[1]), seen); return seen
+})
+await t('初回のあと: もう案内は出ない（覚えている）', async () => {
+  await pt.waitForTimeout(1500)
+  const r = await pt.evaluate(() => { try { return localStorage.getItem('bd_tut2') } catch (e) { return 'x' } })
+  expect(r === '1', r); return r
+})
+await t('チュートリアル: エラーなし', async () => { expect(pt.errs.length === 0, pt.errs.join('|')) })
+await pt.close()
+
+// ---- スマホ縦3サイズ × 全画面で一画面に収まる・3列が画面内
+for (const [W, H, name] of SIZES) {
+  const q = await open(browser, { viewport: { width: W, height: H }, deviceScaleFactor: 2 })
   const views = {}
   await q.waitForTimeout(400)
   views.title = await fit(q); await q.screenshot({ path: `${ROOT}/shots/fit-${name}-title.png` })
   await q.click('#btnHow'); await q.waitForTimeout(200); views.how = await fit(q); await q.screenshot({ path: `${ROOT}/shots/fit-${name}-how.png` })
   await q.click('#btnOk'); await q.waitForTimeout(300); views.play = await fit(q)
-  await q.evaluate(() => { bd.start({ seed: 41, only: ['yakiimo', 'cat'] }); bd.dbg.pause(true) })
-  await runUntil(q, "w.dog.ev && w.dog.ev.st === 'alert' && w.reachable().length > 0", 60 * 40)
-  const poles = await q.evaluate(() => bd.reachable().map(r => r.xy))
+  await q.evaluate(() => { bd.start({ seed: 51 }); bd.dbg.pause(true) })
+  await runUntil(q, "w.obs.some(o => !o.mePassed && o.s - w.me.s < 10 && o.s - w.me.s > 6)", 60 * 40)
+  const lanes = await q.evaluate(() => [-1, 0, 1].map(l => [bd.laneXY(l, 4), bd.laneXY(l, 18)]))
   await q.screenshot({ path: `${ROOT}/shots/fit-${name}-play.png` })
-  await t(`${name}: 届く電柱が画面内に見える`, async () => { expect(poles.length && poles.every(xy => xy && xy.x > 8 && xy.x < w - 8 && xy.y > 60 && xy.y < h - 20), poles); return poles.map(xy => [Math.round(xy.x), Math.round(xy.y)]) })
-  await runUntil(q, "w.phase === 'bow' && w.bow.t > 0.4", 60 * 60)
+  await t(`${name}: 3列とも4m先・18m先が画面内に見える`, async () => { expect(lanes.flat().every(xy => xy && xy.x > 4 && xy.x < W - 4 && xy.y > 120 && xy.y < H - 10), lanes); return lanes.map(a => a.map(xy => [Math.round(xy.x), Math.round(xy.y)])) })
+  await q.evaluate(() => bd.bot('idle', 1))
+  await runUntil(q, "w.me.st === 'bow' && w.bow.t > 0.4", 60 * 60)
   views.bow = await fit(q); await q.screenshot({ path: `${ROOT}/shots/fit-${name}-bow.png` })
-  await q.evaluate(() => { bd.bot('idle', 1); for (let i = 0; i < 60 * 260 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult() })
+  await q.evaluate(() => { for (let i = 0; i < 60 * 200 && bd.w.phase !== 'end'; i++) bd.dbg.step(1); bd.bot(null); bd.showResult() })
   await q.waitForTimeout(400)
   views.result = await fit(q); await q.screenshot({ path: `${ROOT}/shots/fit-${name}-result.png` })
-  for (const [v, r] of Object.entries(views)) await t(`一画面に収まる ${name} ${w}x${h} ${v}`, async () => { expect(!r.over.length, r) })
+  for (const [v, r] of Object.entries(views)) await t(`一画面に収まる ${name} ${W}x${H} ${v}`, async () => { expect(!r.over.length, r) })
   await t(`${name}: はみ出し・エラーなし`, async () => { const o = await overflow(q); expect(o.sw <= o.W && !o.bad.length && !q.errs.length, JSON.stringify(o) + q.errs.join('|')) })
   await q.close()
 }
@@ -232,21 +283,21 @@ await t('WebKit: タップで始まり、実際には無音', async () => {
   const r = await wp.evaluate(() => ({ mode: bd.mode, ok: window.__muteOk(), calls: window.__soundCalls }))
   expect(r.mode === 'play' && r.ok, r); return r
 })
-await t('WebKit: 光る電柱を指でタップすると巻きつく', async () => {
-  await wp.evaluate(() => { bd.start({ seed: 22, only: ['yakiimo'] }); bd.dbg.pause(true) })
-  await runUntil(wp, "w.dog.ev && w.dog.ev.st === 'alert' && w.reachable().length > 0", 60 * 40)
-  await wp.evaluate(() => { bd.dbg.slow(0.15); bd.dbg.pause(false) }); await wp.waitForTimeout(200)
-  const r = await wp.evaluate(() => bd.reachable())
-  await wp.touchscreen.tap(r[0].xy.x, r[0].xy.y); await wp.waitForTimeout(300)
-  const ok = await wp.evaluate(() => !!bd.w.wrap); await wp.evaluate(() => bd.dbg.slow(1))
-  expect(ok, r)
+await t('WebKit: 指でタップすると跳ぶ・なぞると列が替わる', async () => {
+  await wp.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await wp.waitForTimeout(200)
+  await wp.touchscreen.tap(195, 520); await wp.waitForTimeout(120)
+  const y = await wp.evaluate(() => bd.w.me.y)
+  await wp.waitForTimeout(700)
+  await swipe(wp, 90, 0); await wp.waitForTimeout(350)
+  const lane = await wp.evaluate(() => bd.w.me.lane)
+  expect(y > 0.2 && lane === 1, { y, lane }); return { y: +y.toFixed(2), lane }
 })
 await t('WebKit: 音を鳴らす操作のあとも無音', async () => { const r = await wp.evaluate(() => window.__muteOk()); expect(r, r) })
 await t('WebKit: エラーなし', async () => { expect(wp.errs.length === 0, wp.errs.join('|')) })
 await wb.close()
 
 // ---- bot の分布（Node・音なし）
-await t('bot の分布: 何もしないが最悪、合図を読むが最良', async () => {
+await t('bot の分布: 何もしないが最悪、上手いが最良', async () => {
   const out = execSync('node sim.mjs 16', { cwd: ROOT, encoding: 'utf8' })
   const line = out.split('\n').find(l => /^OK|^NG/.test(l))
   expect(/^OK/.test(line), line); return line.replace(/^OK: \S+ /, '')
