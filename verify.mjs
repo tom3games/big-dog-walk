@@ -6,7 +6,7 @@ import { spawn, execSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 const ROOT = import.meta.dirname
 mkdirSync(ROOT + '/shots', { recursive: true })
-const PORT = 6210
+const PORT = Number(process.env.VPORT || 6210)
 const server = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT) } })
 await new Promise(r => setTimeout(r, 400))
 const URL0 = `http://localhost:${PORT}/`
@@ -44,6 +44,9 @@ const fit = q => q.evaluate(() => {
 })
 // 台本どおりに進める（時間を止めて n 歩）
 const runUntil = (p, cond, max = 60 * 60) => p.evaluate(([cond, max]) => { bd.dbg.pause(true); const f = new Function('w', 'return ' + cond); let i = 0; for (; i < max && !f(bd.w); i++) bd.dbg.step(1); bd.render(); return i }, [cond, max])
+// 時間を止めて n 歩進め、その間の me[key] の最大値（実時間の間引き読みだと負荷で山を取り逃す）
+const stepPeak = (p, key, n = 60) => p.evaluate(([key, n]) => { bd.dbg.pause(true); let m = 0; for (let i = 0; i < n; i++) { bd.dbg.step(1); m = Math.max(m, bd.w.me[key]) } bd.render(); return +m.toFixed(2) }, [key, n])
+const stepN = (p, n) => p.evaluate(n => { bd.dbg.pause(true); bd.dbg.step(n); bd.render() }, n)
 // 本物の指（マウス）でなぞる
 async function swipe(p, dx, dy, x0 = 195, y0 = 560) {
   await p.mouse.move(x0, y0); await p.mouse.down()
@@ -55,8 +58,9 @@ const SIZES = [[360, 640, 'small'], [390, 844, 'phone'], [430, 932, 'large']]
 const browser = await chromium.launch(MUTE_LAUNCH)
 const p = await open(browser)
 await t('起動時にエラーが出ない・読み込み画面が消える', async () => {
-  await p.waitForTimeout(700)
-  const gone = await p.evaluate(() => !document.getElementById('loading'))
+  // 準備完了と同時に .done（透明・押せない）を付け、0.5 秒後に要素を外す作り。外すのは後片付けなので、
+  // 固定 700ms 待ちで「外れたか」を見ると負荷で落ちる。消えて押せない状態になっているかを見る
+  const gone = await p.evaluate(() => { const L = document.getElementById('loading'); return !L || (L.classList.contains('done') && getComputedStyle(L).pointerEvents === 'none') })
   expect(p.errs.length === 0 && gone, p.errs.join('|') + ' loading=' + gone)
 })
 await t('ブラウザの拡大が起きない（viewport・ピンチ・Ctrl+ホイール・Ctrl+プラス）', async () => {
@@ -96,31 +100,30 @@ await t('タイトルの「散歩に出る」を押すと遊びが始まる', as
 })
 await t('Chromium: 実際には無音（始めるを押したあと）', async () => { const r = await p.evaluate(() => ({ ok: window.__muteOk(), calls: window.__soundCalls })); expect(r.ok, r); return r })
 await t('右へなぞると右の列へ、左へなぞると戻る（指で）', async () => {
-  await p.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await p.waitForTimeout(200)
-  await swipe(p, 90, 0); await p.waitForTimeout(350)
+  await p.evaluate(() => { bd.start({ seed: 21, only: ['banana'] }); bd.dbg.pause(true) })
+  await swipe(p, 90, 0); await stepN(p, 25)
   const a = await p.evaluate(() => ({ lane: bd.w.me.lane, x: +bd.w.me.x.toFixed(2) }))
-  await swipe(p, -90, 0); await p.waitForTimeout(350)
+  await swipe(p, -90, 0); await stepN(p, 25)
   const b = await p.evaluate(() => ({ lane: bd.w.me.lane, x: +bd.w.me.x.toFixed(2) }))
   expect(a.lane === 1 && a.x > 1.2 && b.lane === 0 && Math.abs(b.x) < 0.3, { a, b }); return { a, b }
 })
 await t('上へなぞると跳ぶ・タップでも跳ぶ・下へなぞるとしゃがむ（指で）', async () => {
-  const peak = async (key) => { let m = 0; for (let i = 0; i < 12; i++) { m = Math.max(m, await p.evaluate(k => bd.w.me[k], key)); await p.waitForTimeout(40) } return +m.toFixed(2) }
-  await p.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await p.waitForTimeout(250)
-  await swipe(p, 0, -90); const up = await peak('y')
-  await p.waitForTimeout(500)
-  await p.mouse.click(195, 500); const tap = await peak('y')
-  await p.waitForTimeout(500)
+  await p.evaluate(() => { bd.start({ seed: 21, only: ['banana'] }); bd.dbg.pause(true) })
+  await swipe(p, 0, -90); const up = await stepPeak(p, 'y')
+  await stepN(p, 40)
+  await p.mouse.click(195, 500); const tap = await stepPeak(p, 'y')
+  await stepN(p, 40)
   const d0 = await p.evaluate(() => bd.w.stats.ducks)
-  await swipe(p, 0, 90); const duck = await peak('duck'), d1 = await p.evaluate(() => bd.w.stats.ducks)
+  await swipe(p, 0, 90); const duck = await stepPeak(p, 'duck', 20), d1 = await p.evaluate(() => bd.w.stats.ducks)
+  await p.evaluate(() => bd.dbg.pause(false))
   expect(up > 0.2 && tap > 0.2 && duck > 0 && d1 === d0 + 1, { up, tap, duck, d0, d1 }); return { up, tap, duck, ducks: d1 - d0 }
 })
 await t('水たまりの手前で指で上へなぞると跳び越える（当たらない）', async () => {
   await p.evaluate(() => { bd.start({ seed: 31, only: ['puddle'] }); bd.dbg.pause(true) })
   await runUntil(p, "w.obs.some(o => o.kind === 'puddle' && Math.abs(o.x - w.me.x) < 0.7 && o.s - w.me.s < w.v * 0.3 && o.s - w.me.s > 0)", 60 * 30)
-  await p.evaluate(() => { bd.dbg.slow(0.25); bd.dbg.pause(false) })
   await swipe(p, 0, -90)
-  await p.waitForTimeout(3000)
-  const r = await p.evaluate(() => { const o = bd.w.obs.find(o => o.kind === 'puddle' && Math.abs(o.x - bd.w.me.x) < 0.7 && o.mePassed); bd.dbg.slow(1); return { passed: !!o, hit: o && o.hit, hits: bd.w.stats.hits, near: bd.w.stats.near } })
+  await runUntil(p, "w.obs.some(o => o.kind === 'puddle' && Math.abs(o.x - w.me.x) < 0.7 && o.mePassed) && w.me.y === 0", 60 * 3)
+  const r = await p.evaluate(() => { const o = bd.w.obs.find(o => o.kind === 'puddle' && Math.abs(o.x - bd.w.me.x) < 0.7 && o.mePassed); bd.dbg.pause(false); return { passed: !!o, hit: o && o.hit, hits: bd.w.stats.hits, near: bd.w.stats.near } })
   expect(r.passed && !r.hit && r.hits === 0, r); return r
 })
 await t('何もしないと当たって転び、お辞儀を押さないと「無言」で1.2倍', async () => {
@@ -185,7 +188,8 @@ await t('押している指の上に重なる文字の層は押せない（point
 await t('遊び中に同時に出る文字は2つまで（下手な bot の通しで計測）', async () => {
   await p.evaluate(() => { bd.start({ seed: 25 }); bd.bot('clumsy', 1) })
   let max = 0, worst = null, seen = 0
-  for (let i = 0; i < 60; i++) { await p.waitForTimeout(150); const tx = await p.evaluate(() => bd.texts()); if (tx.length) seen++; if (tx.length > max) { max = tx.length; worst = tx } }
+  // 文字の消え方は実時間なので見張りは実時間のまま。負荷で bot の進みが遅い時は、文字を4回見るまで延ばす（最大60秒）
+  for (let i = 0; i < 400 && (i < 60 || seen <= 3); i++) { await p.waitForTimeout(150); const tx = await p.evaluate(() => bd.texts()); if (tx.length) seen++; if (tx.length > max) { max = tx.length; worst = tx } }
   await p.evaluate(() => bd.bot(null))
   expect(max <= 2 && seen > 3, { max, seen, worst }); return { max, seen }
 })
@@ -219,10 +223,10 @@ await t('初回: 物の手前で時間がゆっくりになり、指でなぞる
   const b = await pt.locator('#btnStart').boundingBox(); await pt.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
   const got = []
   for (const [key, dx, dy] of [['swipe', 90, 0], ['jump', 0, -90], ['duck', 0, 90]]) {
-    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 15000 })
+    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 60000 })   // 案内は実時間で進む作り。負荷で遅い時のため上限を広く
     const h = await pt.evaluate(() => bd.hud().hint)
     await swipe(pt, dx, dy)
-    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 3000 })
+    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 15000 })
     got.push(h)
   }
   const hits = await pt.evaluate(() => bd.w.stats.hits)
@@ -231,15 +235,15 @@ await t('初回: 物の手前で時間がゆっくりになり、指でなぞる
 await t('初回: 犬と同じ側・耳が立ったらついて行く、の案内が出る', async () => {
   const seen = []
   for (const key of ['side', 'dart']) {
-    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 20000 })
+    await pt.waitForFunction(k => bd.tut && bd.tut.step === k, key, { timeout: 60000 })
     seen.push(await pt.evaluate(() => bd.hud().hint))
     await pt.evaluate(() => { const d = bd.w.dog; const goal = d.dart ? d.dart.side : d.lane; if (bd.w.me.lane !== goal) bd.input({ move: Math.sign(goal - bd.w.me.lane) }) })
-    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 7000 })
+    await pt.waitForFunction(() => !bd.tut.step, null, { timeout: 30000 })
   }
   expect(/同じ側/.test(seen[0]) && /ついて/.test(seen[1]), seen); return seen
 })
 await t('初回のあと: もう案内は出ない（覚えている）', async () => {
-  await pt.waitForTimeout(1500)
+  await pt.waitForFunction(() => { try { return localStorage.getItem('bd_tut2') === '1' } catch (e) { return true } }, null, { timeout: 30000 }).catch(() => {})
   const r = await pt.evaluate(() => { try { return localStorage.getItem('bd_tut2') } catch (e) { return 'x' } })
   expect(r === '1', r); return r
 })
@@ -284,12 +288,11 @@ await t('WebKit: タップで始まり、実際には無音', async () => {
   expect(r.mode === 'play' && r.ok, r); return r
 })
 await t('WebKit: 指でタップすると跳ぶ・なぞると列が替わる', async () => {
-  await wp.evaluate(() => bd.start({ seed: 21, only: ['banana'] })); await wp.waitForTimeout(200)
-  await wp.touchscreen.tap(195, 520); await wp.waitForTimeout(120)
-  const y = await wp.evaluate(() => bd.w.me.y)
-  await wp.waitForTimeout(700)
-  await swipe(wp, 90, 0); await wp.waitForTimeout(350)
-  const lane = await wp.evaluate(() => bd.w.me.lane)
+  await wp.evaluate(() => { bd.start({ seed: 21, only: ['banana'] }); bd.dbg.pause(true) })
+  await wp.touchscreen.tap(195, 520); const y = await stepPeak(wp, 'y')
+  await stepN(wp, 40)
+  await swipe(wp, 90, 0); await stepN(wp, 25)
+  const lane = await wp.evaluate(() => { const l = bd.w.me.lane; bd.dbg.pause(false); return l })
   expect(y > 0.2 && lane === 1, { y, lane }); return { y: +y.toFixed(2), lane }
 })
 await t('WebKit: 音を鳴らす操作のあとも無音', async () => { const r = await wp.evaluate(() => window.__muteOk()); expect(r, r) })
